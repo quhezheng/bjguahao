@@ -14,6 +14,7 @@ import logging
 from lib.prettytable import PrettyTable
 import base64
 
+
 if sys.version_info.major != 3:
     logging.error("请在python3环境下运行本程序")
     sys.exit(-1)
@@ -64,6 +65,11 @@ class Config(object):
                 self.patient_name = data["patientName"]
                 self.hospital_card_id = data["hospitalCardId"]
                 self.medicare_card_id = data["medicareCardId"]
+                self.childrenIdNo = data["childrenIdNo"]
+                self.cidType = data["cidType"]
+                self.childrenBirthday = data["childrenBirthday"]
+                #print ("患儿身份证:" + str(self.childrenIdNo))
+                self.childrenGender = data["childrenGender"]
                 self.reimbursement_type = data["reimbursementType"]
                 self.doctorName = data["doctorName"]
                 self.patient_id = int()
@@ -75,6 +81,10 @@ class Config(object):
                     self.useQPython3 = data["useQPython3"]
                 except KeyError:
                     self.useQPython3 = "false"
+                try:
+                    self.useMsgForward = data["useMsgForward"]
+                except KeyError:
+                    self.useMsgForward = "false"
                 #
                 logging.info("配置加载完成")
                 logging.debug("手机号:" + str(self.mobile_no))
@@ -83,6 +93,7 @@ class Config(object):
                 logging.debug("科室id:" + str(self.department_id))
                 logging.debug("上午/下午:" + str(self.duty_code))
                 logging.debug("就诊人姓名:" + str(self.patient_name))
+                logging.debug("患儿身份证:" + str(self.childrenIdNo))
                 logging.debug("所选医生:" + str(self.doctorName))
                 logging.debug("使用mac电脑接收验证码:" + str(self.useIMessage))
                 logging.debug("是否使用 QPython3 运行本脚本:" + str(self.useQPython3))
@@ -130,6 +141,16 @@ class Guahao(object):
                 self.qpython3 = None
         else:
             self.qpython3 = None
+            
+        if self.config.useMsgForward == 'true':
+            try: # 内建接收器接收验证码
+                # 按需导入 imserver.py
+                import imserver
+                self.imserver = imserver.IMServer()
+            except ModuleNotFoundError:
+                self.imserver = None
+        else:
+            self.imserver = None
 
     def is_login(self):
 
@@ -269,6 +290,11 @@ class Guahao(object):
         patient_id = self.config.patient_id
         hospital_card_id = self.config.hospital_card_id
         medicare_card_id = self.config.medicare_card_id
+        patient_name = self.config.patient_name
+        childrenIdNo = self.config.childrenIdNo
+        cidType = self.config.cidType
+        childrenBirthday = self.config.childrenBirthday
+        childrenGender = self.config.childrenGender
         reimbursement_type = self.config.reimbursement_type
         doctor_id = str(doctor['doctorId'])
 
@@ -280,6 +306,11 @@ class Guahao(object):
             'patientId': patient_id,
             'hospitalCardId': hospital_card_id,
             'medicareCardId': medicare_card_id,
+            'childrenName': patient_name,
+            'childrenIdNo': childrenIdNo,
+            'cidType': cidType,
+            'childrenBirthday': childrenBirthday,
+            'childrenGender': childrenGender,
             "reimbursementType": reimbursement_type, # 报销类型
             'smsVerifyCode': sms_code,          # TODO 获取验证码
             'childrenBirthday': "",
@@ -377,6 +408,11 @@ class Guahao(object):
                 code = self.imessage.get_verify_code()
             elif self.qpython3 is not None: # 如果使用 QPython3
                 code = self.qpython3.get_verify_code()
+            elif self.imserver is not None: # 使用短信转发助手
+                import imserver
+                self.imserver.start()
+                code = imserver.im_code
+                logging.info("收到手机转发验证码:" + code)
             else:
                 code = input("输入短信验证码: ")
             return code
@@ -435,6 +471,13 @@ class Guahao(object):
                 result = self.get_it(doctor, sms_code)              # 4.挂号
                 if result:
                     break                                           # 挂号成功
+                    
+    def testMsgForward(self):
+        if self.imserver is not None: # 使用短信转发助手
+            self.imserver.start()
+            import imserver
+            code = imserver.im_code
+            print('找到验证码:'+code)
 
 
 if __name__ == "__main__":
